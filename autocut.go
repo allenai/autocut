@@ -32,14 +32,15 @@ func (ac *Autocut) Cut(ctx context.Context, title, details string) (string, erro
 
 	switch result {
 	case FoundRecentIssue:
-		return fmt.Sprintf("Found recently updated issue, so did nothing: %s", matched.GetHTMLURL()), nil
+		return fmt.Sprintf("found recently updated issue, so did nothing: %s", matched.GetHTMLURL()), nil
 	case FoundStaleIssue:
-		update := fmt.Sprintf("It's been %s since the last update, and the problem is still happening.\n\nUpdate: %s", ac.AgeThreshold.String(), details)
+		age := time.Now().Sub(matched.GetUpdatedAt())
+		update := fmt.Sprintf("It's been %s since the last update (which is more than the threshold of %s), and the problem is still happening.\n\nUpdate: %s", age.String(), ac.AgeThreshold.String(), details)
 		err := ac.comment(ctx, *matched.Number, update)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Found a stale issue, so commented on it: %s", matched.GetHTMLURL()), nil
+		return fmt.Sprintf("found a stale issue, so commented on it: %s", matched.GetHTMLURL()), nil
 	case FoundRecentIssueClosed:
 		err := ac.reopen(ctx, *matched.Number)
 		if err != nil {
@@ -50,13 +51,13 @@ func (ac *Autocut) Cut(ctx context.Context, title, details string) (string, erro
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Found a recently closed issue, so re-opened and commented on it: %s", matched.GetHTMLURL()), nil
+		return fmt.Sprintf("found a recently closed issue, so re-opened and commented on it: %s", matched.GetHTMLURL()), nil
 	case FoundNone:
 		newIss, err := ac.create(ctx, title, details)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("Opened new issue %s.", newIss.GetHTMLURL()), nil
+		return fmt.Sprintf("opened new issue %s", newIss.GetHTMLURL()), nil
 	}
 
 	panic("shouldn't get here")
