@@ -1,7 +1,6 @@
 package main
 
 import (
-	autocut "autocut/cutter"
 	"context"
 	"flag"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/allenai/autocut"
 	"github.com/google/go-github/v39/github"
 	"golang.org/x/oauth2"
 )
