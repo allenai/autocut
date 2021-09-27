@@ -5,7 +5,7 @@ title.
 
 With this tool, you can repeatedly "cut" the same issue over and over, knowing
 it'll only be created once, updated if it's stale, and re-open if it was
-recently closed.
+recently closed. It was built to support system monitoring.
 
 You can use it as a CLI, or as a Go library in your application.
 
