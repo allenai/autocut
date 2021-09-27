@@ -8,17 +8,6 @@ import (
 	"github.com/google/go-github/v39/github"
 )
 
-const autocutLabel = "autocut"
-
-type MatchResult string
-
-const (
-	FoundStaleIssue        MatchResult = "found old issue that's open"
-	FoundRecentIssue                   = "found recent issue that's open"
-	FoundRecentIssueClosed             = "found recent issue that's closed"
-	FoundNone                          = "found no issue"
-)
-
 type Autocut struct {
 	Client       *github.Client
 	Owner        string
@@ -26,38 +15,77 @@ type Autocut struct {
 	AgeThreshold time.Duration
 }
 
-func (ac *Autocut) Cut(ctx context.Context, title, details string) (string, error) {
+type CutResult struct {
+	Code     CutCode
+	IssueURL string
+}
+
+type CutCode string
+
+const (
+	None                        CutCode = ""
+	IgnoredRecentlyUpdatedIssue         = "found a recently updated issue, so did nothing"
+	UpdatedStaleIssue                   = "updated a stale issue"
+	ReopenedRecentIssue                 = "re-opened a recently closed issue"
+	OpenedNewIssue                      = "opened a new issue"
+)
+
+type matchResult string
+
+const (
+	foundStaleIssue        matchResult = "found old issue that's open"
+	foundRecentIssue                   = "found recent issue that's open"
+	foundRecentIssueClosed             = "found recent issue that's closed"
+	foundNone                          = "found no issue"
+)
+
+const autocutLabel = "autocut"
+
+func (ac *Autocut) Cut(ctx context.Context, title, details string) (CutResult, error) {
 	issues := ac.getIssues(ctx)
 	result, matched := ac.firstMatch(issues, title)
 
 	switch result {
-	case FoundRecentIssue:
-		return fmt.Sprintf("found recently updated issue, so did nothing: %s", matched.GetHTMLURL()), nil
-	case FoundStaleIssue:
+	case foundRecentIssue:
+		return CutResult{
+			Code:     IgnoredRecentlyUpdatedIssue,
+			IssueURL: matched.GetHTMLURL(),
+		}, nil
+	case foundStaleIssue:
 		age := time.Now().Sub(matched.GetUpdatedAt())
 		update := fmt.Sprintf("It's been %s since the last update (which is more than the threshold of %s), and the problem is still happening.\n\nUpdate: %s", age.String(), ac.AgeThreshold.String(), details)
 		err := ac.comment(ctx, *matched.Number, update)
 		if err != nil {
-			return "", err
+			return CutResult{None, ""}, err
 		}
-		return fmt.Sprintf("found a stale issue, so commented on it: %s", matched.GetHTMLURL()), nil
-	case FoundRecentIssueClosed:
+		return CutResult{
+			Code:     UpdatedStaleIssue,
+			IssueURL: matched.GetHTMLURL(),
+		}, nil
+	case foundRecentIssueClosed:
+		age := time.Now().Sub(matched.GetUpdatedAt())
 		err := ac.reopen(ctx, *matched.Number)
 		if err != nil {
-			return "", err
+			return CutResult{None, ""}, err
 		}
-		update := fmt.Sprintf("Only %s has passed, and the problem is happening again.\n\nUpdate: %s", ac.AgeThreshold.String(), details)
+		update := fmt.Sprintf("Only %s has passed (less than the threshold of %s), and the problem is happening again.\n\nUpdate: %s", age.String(), ac.AgeThreshold.String(), details)
 		err = ac.comment(ctx, *matched.Number, update)
 		if err != nil {
-			return "", err
+			return CutResult{None, ""}, err
 		}
-		return fmt.Sprintf("found a recently closed issue, so re-opened and commented on it: %s", matched.GetHTMLURL()), nil
-	case FoundNone:
+		return CutResult{
+			Code:     ReopenedRecentIssue,
+			IssueURL: matched.GetHTMLURL(),
+		}, nil
+	case foundNone:
 		newIss, err := ac.create(ctx, title, details)
 		if err != nil {
-			return "", err
+			return CutResult{None, ""}, err
 		}
-		return fmt.Sprintf("opened new issue %s", newIss.GetHTMLURL()), nil
+		return CutResult{
+			Code:     OpenedNewIssue,
+			IssueURL: newIss.GetHTMLURL(),
+		}, nil
 	}
 
 	panic("shouldn't get here")
@@ -77,7 +105,7 @@ func (ac *Autocut) getIssues(ctx context.Context) []*github.Issue {
 	return issues
 }
 
-func (ac *Autocut) firstMatch(issues []*github.Issue, title string) (MatchResult, *github.Issue) {
+func (ac *Autocut) firstMatch(issues []*github.Issue, title string) (matchResult, *github.Issue) {
 	/*
 		    Assuming ac.AgeThreshold is 1 day:
 
@@ -95,23 +123,23 @@ func (ac *Autocut) firstMatch(issues []*github.Issue, title string) (MatchResult
 			if i.GetState() == "open" {
 				if updatedRecently {
 					// Recently updated, nothing to do.
-					return FoundRecentIssue, i
+					return foundRecentIssue, i
 				}
 				// Updated a long time ago, but still open. Comment.
-				return FoundStaleIssue, i
+				return foundStaleIssue, i
 			}
 			if i.GetState() == "closed" {
 				if updatedRecently {
 					// Recently closed, so re-open and comment.
-					return FoundRecentIssueClosed, i
+					return foundRecentIssueClosed, i
 				} else {
 					// Closed a long time ago, so open a new issue.
-					return FoundNone, nil
+					return foundNone, nil
 				}
 			}
 		}
 	}
-	return FoundNone, nil
+	return foundNone, nil
 }
 
 func (ac *Autocut) comment(ctx context.Context, issNumber int, message string) error {
