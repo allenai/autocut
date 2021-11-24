@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/allenai/autocut"
@@ -13,18 +14,20 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func processArgs() (string, string, string, string, time.Duration) {
+func processArgs() (string, string, string, string, time.Duration, []string) {
 	var owner string
 	var repo string
 	var title string
 	var details string
 	var durStr string
+	var labelsStr string
 
 	flag.StringVar(&owner, "owner", "", "Owner of the repo")
 	flag.StringVar(&repo, "repo", "", "Name of the repo")
 	flag.StringVar(&title, "title", "", "Title of the issue")
 	flag.StringVar(&details, "details", "", "Details of the event")
 	flag.StringVar(&durStr, "dur", "", "Duration threshold")
+	flag.StringVar(&labelsStr, "labels", "", "Custom labels, separated by commas")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Cuts a new GitHub issue automatically, or updates an existing one.\n\n")
@@ -69,6 +72,11 @@ func processArgs() (string, string, string, string, time.Duration) {
 		os.Exit(1)
 	}
 
+	var customLabels []string
+	if labelsStr != "" {
+		customLabels = strings.Split(labelsStr, ",")
+	}
+
 	dur, err := time.ParseDuration(durStr)
 	if err != nil {
 		fmt.Printf("Error: Duration invalid: %s\n", err.Error())
@@ -77,13 +85,13 @@ func processArgs() (string, string, string, string, time.Duration) {
 		os.Exit(1)
 	}
 
-	return owner, repo, title, details, dur
+	return owner, repo, title, details, dur, customLabels
 }
 
 func main() {
 	log.SetFlags(0)
 
-	owner, repo, title, details, dur := processArgs()
+	owner, repo, title, details, dur, customLabels := processArgs()
 
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
@@ -103,7 +111,7 @@ func main() {
 		AgeThreshold: dur,
 	}
 
-	action, err := ac.Cut(ctx, title, details)
+	action, err := ac.Cut(ctx, title, details, customLabels)
 	if err != nil {
 		panic(err)
 	}

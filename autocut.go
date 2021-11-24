@@ -41,7 +41,7 @@ const (
 
 const autocutLabel = "autocut"
 
-func (ac *Autocut) Cut(ctx context.Context, title, details string) (CutResult, error) {
+func (ac *Autocut) Cut(ctx context.Context, title, details string, customLabels []string) (CutResult, error) {
 	issues := ac.getIssues(ctx)
 	result, matched := ac.firstMatch(issues, title)
 
@@ -78,7 +78,7 @@ func (ac *Autocut) Cut(ctx context.Context, title, details string) (CutResult, e
 			IssueURL: matched.GetHTMLURL(),
 		}, nil
 	case foundNone:
-		newIss, err := ac.create(ctx, title, details)
+		newIss, err := ac.create(ctx, title, details, customLabels)
 		if err != nil {
 			return CutResult{None, ""}, err
 		}
@@ -167,11 +167,14 @@ func (ac *Autocut) reopen(ctx context.Context, issNumber int) error {
 	return nil
 }
 
-func (ac *Autocut) create(ctx context.Context, title, body string) (*github.Issue, error) {
+func (ac *Autocut) create(ctx context.Context, title, body string, customLabels []string) (*github.Issue, error) {
+	labels := []string{autocutLabel}
+	labels = append(labels, customLabels...)
+
 	iss, _, err := ac.Client.Issues.Create(ctx, ac.Owner, ac.Repo, &github.IssueRequest{
 		Title:  &title,
 		Body:   &body,
-		Labels: &[]string{autocutLabel},
+		Labels: &labels,
 	})
 
 	if err != nil {
