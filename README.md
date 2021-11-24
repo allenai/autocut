@@ -27,21 +27,21 @@ Then make a new issue that something is wrong:
 
 ```
 % ./autocut -owner allenai -repo aimichal -dur 10m -title "something is wrong" -details "bad habits"
-Opened new issue https://github.com/allenai/aimichal/issues/27.
+{opened new issue https://github.com/allenai/aimichal/issues/27}
 ```
 
 Any time in the next 10 minutes, repeating this will do nothing:
 
 ```
 % ./autocut -owner allenai -repo aimichal -dur 10m -title "something is wrong" -details "bad habits"
-Found recently updated issue, so did nothing: https://github.com/allenai/aimichal/issues/27
+{found recently updated issue, so did nothing https://github.com/allenai/aimichal/issues/27}
 ```
 
 But after 10 minutes, running this will update the issue with a comment:
 
 ```
 % ./autocut -owner allenai -repo aimichal -dur 10m -title "something is wrong" -details "such bad things are happening"
-Found a stale issue, so commented on it: https://github.com/allenai/aimichal/issues/27
+{found a stale issue, so commented on it https://github.com/allenai/aimichal/issues/27}
 ```
 
 If this issue is closed, then running this will re-open the issue within 10
