@@ -221,7 +221,7 @@ func (ac *Autocut) getProjectID(ctx context.Context) (int64, error) {
 	page := 0
 	for {
 		projects, resp, err := ac.Client.Organizations.ListProjects(ctx, ac.Owner, &github.ProjectListOptions{
-			State: "all;",
+			State: "all",
 			ListOptions: github.ListOptions{
 				Page:    page,
 				PerPage: 100,
