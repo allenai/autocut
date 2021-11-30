@@ -14,13 +14,15 @@ import (
 	"golang.org/x/oauth2"
 )
 
-func processArgs() (string, string, string, string, time.Duration, []string) {
+func processArgs() (string, string, string, string, time.Duration, []string, string, string) {
 	var owner string
 	var repo string
 	var title string
 	var details string
 	var durStr string
 	var labelsStr string
+	var projName string
+	var projColumnName string
 
 	flag.StringVar(&owner, "owner", "", "Owner of the repo")
 	flag.StringVar(&repo, "repo", "", "Name of the repo")
@@ -28,6 +30,8 @@ func processArgs() (string, string, string, string, time.Duration, []string) {
 	flag.StringVar(&details, "details", "", "Details of the event")
 	flag.StringVar(&durStr, "dur", "", "Duration threshold")
 	flag.StringVar(&labelsStr, "labels", "", "Custom labels, separated by commas")
+	flag.StringVar(&projName, "proj", "", "Organization project name")
+	flag.StringVar(&projColumnName, "projcol", "", "Project column name")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Cuts a new GitHub issue automatically, or updates an existing one.\n\n")
@@ -85,13 +89,27 @@ func processArgs() (string, string, string, string, time.Duration, []string) {
 		os.Exit(1)
 	}
 
-	return owner, repo, title, details, dur, customLabels
+	if projName != "" && projColumnName == "" {
+		fmt.Println("Error: Need a project column when referring to a project")
+		fmt.Println()
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if projColumnName != "" && projName == "" {
+		fmt.Println("Error: Need a project number when referring to a project column")
+		fmt.Println()
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	return owner, repo, title, details, dur, customLabels, projName, projColumnName
 }
 
 func main() {
 	log.SetFlags(0)
 
-	owner, repo, title, details, dur, customLabels := processArgs()
+	owner, repo, title, details, dur, customLabels, projName, projColumnName := processArgs()
 
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
@@ -105,10 +123,12 @@ func main() {
 	ghClient := github.NewClient(tc)
 
 	ac := &autocut.Autocut{
-		Client:       ghClient,
-		Owner:        owner,
-		Repo:         repo,
-		AgeThreshold: dur,
+		Client:            ghClient,
+		Owner:             owner,
+		Repo:              repo,
+		AgeThreshold:      dur,
+		ProjectName:       projName,
+		ProjectColumnName: projColumnName,
 	}
 
 	action, err := ac.Cut(ctx, title, details, customLabels)
