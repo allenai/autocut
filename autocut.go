@@ -9,10 +9,12 @@ import (
 )
 
 type Autocut struct {
-	Client       *github.Client
-	Owner        string
-	Repo         string
-	AgeThreshold time.Duration
+	Client            *github.Client
+	Owner             string
+	Repo              string
+	AgeThreshold      time.Duration
+	ProjectName       string
+	ProjectColumnName string
 }
 
 type CutResult struct {
@@ -176,10 +178,96 @@ func (ac *Autocut) create(ctx context.Context, title, body string, customLabels 
 		Body:   &body,
 		Labels: &labels,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
+	// Add this new issue to the specified project and column
+	if ac.ProjectName != "" && ac.ProjectColumnName != "" {
+		err = ac.addToProject(ctx, *iss.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return iss, nil
+}
+
+func (ac *Autocut) addToProject(ctx context.Context, issueID int64) error {
+	projectID, err := ac.getProjectID(ctx)
+	if err != nil {
+		return err
+	}
+
+	columnID, err := ac.getColumnID(ctx, projectID)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = ac.Client.Projects.CreateProjectCard(ctx, columnID, &github.ProjectCardOptions{
+		Note:        "",
+		ContentID:   issueID,
+		ContentType: "Issue",
+		Archived:    nil,
+	})
+	if err != nil {
+		return fmt.Errorf("couldn't create project card: %w", err)
+	}
+
+	return nil
+}
+
+func (ac *Autocut) getProjectID(ctx context.Context) (int64, error) {
+	page := 0
+	for {
+		projects, resp, err := ac.Client.Organizations.ListProjects(ctx, ac.Owner, &github.ProjectListOptions{
+			State: "all;",
+			ListOptions: github.ListOptions{
+				Page:    page,
+				PerPage: 100,
+			},
+		})
+		if err != nil {
+			return 0, fmt.Errorf("couldn't fetch project %q: %w", ac.ProjectName, err)
+		}
+
+		for _, proj := range projects {
+			if *proj.Name == ac.ProjectName {
+				return *proj.ID, nil
+			}
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+
+	return 0, fmt.Errorf("project %q not found", ac.ProjectColumnName)
+}
+
+func (ac *Autocut) getColumnID(ctx context.Context, projectID int64) (int64, error) {
+	page := 0
+	for {
+		columns, resp, err := ac.Client.Projects.ListProjectColumns(ctx, projectID, &github.ListOptions{
+			Page:    page,
+			PerPage: 100,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("couldn't fetch columns of project %d: %w", ac.ProjectName, err)
+		}
+
+		for _, column := range columns {
+			if *column.Name == ac.ProjectColumnName {
+				return *column.ID, nil
+			}
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		page = resp.NextPage
+	}
+
+	return 0, fmt.Errorf("column %q in project %q not found", ac.ProjectColumnName, ac.ProjectName)
 }
