@@ -53,7 +53,7 @@ func (ac *Autocut) Cut(ctx context.Context, title, details string, customLabels 
 		}, nil
 	case foundStaleIssue:
 		age := time.Now().Sub(matched.GetUpdatedAt())
-		update := fmt.Sprintf("It's been %s since the last update (which is more than the threshold of %s), and the problem is still happening.\n\nUpdate: %s", age.String(), ac.AgeThreshold.String(), details)
+		update := fmt.Sprintf("It's been %s since the last update (which is more than the threshold of %s), and the problem is still happening.\n\nUpdate:\n\n%s", age.String(), ac.AgeThreshold.String(), details)
 		err := ac.comment(ctx, *matched.Number, update)
 		if err != nil {
 			return CutResult{None, ""}, err
@@ -68,7 +68,7 @@ func (ac *Autocut) Cut(ctx context.Context, title, details string, customLabels 
 		if err != nil {
 			return CutResult{None, ""}, err
 		}
-		update := fmt.Sprintf("Only %s has passed (less than the threshold of %s), and the problem is happening again.\n\nUpdate: %s", age.String(), ac.AgeThreshold.String(), details)
+		update := fmt.Sprintf("Only %s has passed (less than the threshold of %s), and the problem is happening again.\n\nUpdate:\n\n%s", age.String(), ac.AgeThreshold.String(), details)
 		err = ac.comment(ctx, *matched.Number, update)
 		if err != nil {
 			return CutResult{None, ""}, err
